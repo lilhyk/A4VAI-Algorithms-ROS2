@@ -1,25 +1,31 @@
+# Copyright 2016 Open Source Robotics Foundation, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import rclpy
+from rclpy.node import Node
+
+from std_msgs.msg import String
+
+from cv_bridge import CvBridge
+from sensor_msgs.msg import Image
+import cv2
+
 import numpy as np
 import onnx
 import onnxruntime as ort
-import cv2
 import time
 import random
-
-model_path = "C:\\Users\\hy\\PycharmProjects\\pythonProject\\Main Code_HeightMap_khw\\90_exp_263k.onnx"
-model_path2 = "C:\\Users\\hy\\PycharmProjects\\pythonProject\\Main Code_HeightMap_khw\\test26.onnx"
-image_path = "C:\\Users\\hy\\PycharmProjects\\pythonProject\\Main Code_HeightMap_khw\\heightmapsGenerated\\1000-003.png"
-
-
-## Range [-2500, 2500]으로 바꾸기
-MapSize = 1000  # size 500
-Step_Num_custom = MapSize + 1000
-Init_custom = np.array([100, 2, 100])
-Target_custom = np.array([950, 2, 950])
-
-Waypoint2 = np.zeros((Step_Num_custom,3))
-Waypoint = np.zeros((Step_Num_custom, 3))
-Obs_mat = np.array([[]])
-Waypoint[0] = Init_custom[:]
 
 class PathPlanning:
     def __init__(self, model_path, image_path, map_size=1000):
@@ -28,10 +34,20 @@ class PathPlanning:
         self.map_size = map_size
         self.raw_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         self.raw_image_flipped = cv2.flip(self.raw_image, 0)
-        self.image_new = np.where(self.raw_image_flipped < 130, 0, 1)
-
+        self.image_new = np.where(self.raw_image_flipped < 150, 0, 1)  # 130
+        # Heightmap 하얀 부분이 더 높은 장애물임
+        # 150m로 이동할 때, 장애물이 150보다 작으면 지나갈 수 있으니 0 150보다 크면 1
+        # 150m 이상 높은 장애물 모두 통과 가능하도록 경로 산출
 
     def compute_path(self, Init, Target, step_num):
+
+        # Initialization
+        MapSize = step_num - 1000
+        Waypoint2 = np.zeros((step_num, 3))
+        Waypoint = np.zeros((step_num, 3))
+        Obs_mat = np.array([[]])
+        Waypoint[0] = Init[:]
+
         # 변수 초기화
         ds = 0      # ds의 초기값 설정 (이 값은 문맥에 맞게 조정해야 할 수도 있음)
         Image_New =  self.image_new
@@ -50,8 +66,6 @@ class PathPlanning:
             ## Make Obs3(Lidar Terms)
             MaxLidar = 100  # Lidar의 최대 거리 비율 조정 factor
             scalefactor = 20  # map size 비율 조정 factor
-
-
 
 
             for j in range(0, 12):  # 0 - 11
@@ -174,7 +188,14 @@ class PathPlanning:
             self.path_x = Waypoint[:i + 1, 0]
             self.path_y = Waypoint[:i + 1, 2]
 
+        self.path_z = 150 * np.ones(len(self.path_x))
+
+
+
     def plot_binary(self, output_path, step_num):
+
+        MapSize = step_num - 1000
+
         # 결과 이미지 생성 및 저장
         path_x = self.path_x
         path_y = self.path_y
@@ -216,12 +237,15 @@ class PathPlanning:
                 cv2.line(imageLine, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
 
         cv2.imwrite(output_path, imageLine)  ################################
-        cv2.imshow('Binary Path Image', imageLine)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # cv2.imshow('Binary Path Image', imageLine)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
 
 
     def plot_original(self, output_path, step_num):
+
+        MapSize = step_num - 1000
+
         ## Plot and Save Image
         path_x = self.path_x
         path_y = self.path_y
@@ -244,9 +268,9 @@ class PathPlanning:
                 cv2.line(imageLine2, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
 
         cv2.imwrite(output_path, imageLine2)  ################################
-        cv2.imshow('Binary Path Image', imageLine2)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        # cv2.imshow('Binary Path Image', imageLine2)
+        #cv2.waitKey(0)
+        #cv2.destroyAllWindows()
 
     def total_waypoint_distance(self):
         total_distance = 0
@@ -264,36 +288,114 @@ class PathPlanning:
     def print_distance_ratio(self):
         total_wp_distance = self.total_waypoint_distance()
         init_target_distance = self.init_to_target_distance()
-        # 절대오차 계산
-        absolute_error = abs(total_wp_distance - init_target_distance)
 
-        # 상대오차 계산 (0으로 나누는 경우 예외 처리)
-        if init_target_distance != 0:
-            relative_error = absolute_error / init_target_distance
-            print(f"절대오차: {absolute_error:.2f}, 상대오차: {relative_error:.2%}")
-        else:
-            print(f"절대오차: {absolute_error:.2f}, 상대오차: 계산 불가 (분모가 0)")
+        # # 절대오차 계산
+        # absolute_error = abs(total_wp_distance - init_target_distance)
+        #
+        # # 상대오차 계산 (0으로 나누는 경우 예외 처리)
+        # if init_target_distance != 0:
+        #     relative_error = absolute_error / init_target_distance
+        #     print(f"절대오차: {absolute_error:.2f}, 상대오차: {relative_error:.2%}")
+        # else:
+        #     print(f"절대오차: {absolute_error:.2f}, 상대오차: 계산 불가 (분모가 0)")
 
-        #ratio = ((total_wp_distance-init_target_distance / total_wp_distance) )*100
-        #print("Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
+        ratio = ( total_wp_distance / init_target_distance )*100
+        print("Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
 
-
-# model 90 deg
-planner = PathPlanning(model_path, image_path)
-planner.compute_path(Init_custom, Target_custom, Step_Num_custom) # start point , target point,step_num, max lidar, scale factor
-planner.plot_binary("MCResult/path_test_001_binary.png", Step_Num_custom)
-planner.plot_original("MCResult/path_test_001_og.png", Step_Num_custom)
-planner.print_distance_ratio()
-
-# model test26
-planner2 = PathPlanning(model_path2,image_path)
-planner.compute_path(Init_custom, Target_custom, Step_Num_custom) # start point , target point,
-planner.plot_binary("MCResult/path_test_002_binary.png", Step_Num_custom)
-planner.plot_original("MCResult/path_test_002_og.png", Step_Num_custom)
-planner.print_distance_ratio()
+        return ratio
 
 
+class MinimalSubscriber(Node):  # topic 이름과 message 타입은 서로 매칭되어야 함
 
+    def __init__(self):
+        super().__init__('minimal_subscriber')
+        self.subscription = self.create_subscription(
+            String,
+            'topic',
+            self.listener_callback,
+            10)  # subscriber의 custructor와 callback은 어떤 timer 정의도 포함하지 않음
+        self.subscription  # prevent unused variable warning
+        self.bridge = CvBridge()
 
 
 
+    def listener_callback(self, msg):  # callback 함수는 데이터 받을 때마다 콘솔에 info message를 프린트
+        
+        self.get_logger().info('I heard an image path: "%s"' % msg.data)
+        
+        self.data = msg.data
+
+
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    minimal_subscriber = MinimalSubscriber()
+
+    rclpy.spin_once(minimal_subscriber)  
+
+    image_path = minimal_subscriber.data  # "1000-003.png"  # Message 통신
+    model_path = "90_exp_263k.onnx"
+    model_path2 = "test26.onnx"
+
+
+    # Initialiaztion
+    ## Range [-2500, 2500]으로 바꾸기
+    MapSize = 1000  # size 500
+    Step_Num_custom = MapSize + 1000
+    Init_custom = np.array([100, 2, 100])  # Message로 바꿀 예정
+    Target_custom = np.array([950, 2, 950])  # Message로 바꿀 예정
+
+
+    # Mode: 1 (현재 경로계획만 계산), 2 (현재 + 작년 경로계획과 같이 계산하여 정량평가까지 완료)
+    # Node Input: Image 경로 & Mode & 시작점 & 도착점, Output: wp (or Cost도)
+    Mode = 2  # Massage로 바꿀 예정
+    if Mode == 1:
+        
+        # model 90 deg
+        planner = PathPlanning(model_path, image_path)
+        planner.compute_path(Init_custom, Target_custom,
+                             Step_Num_custom)  # start point , target point,step_num, max lidar, scale factor
+        planner.plot_binary("path_test_001_binary.png", Step_Num_custom)
+        planner.plot_original("path_test_001_og.png", Step_Num_custom)
+        planner.print_distance_ratio()
+
+
+    elif Mode == 2:
+
+        # model 90 deg
+        planner = PathPlanning(model_path, image_path)
+        planner.compute_path(Init_custom, Target_custom,
+                             Step_Num_custom)  # start point , target point,step_num, max lidar, scale factor
+        planner.plot_binary("path_test_001_binary.png", Step_Num_custom)
+        planner.plot_original("path_test_001_og.png", Step_Num_custom)
+
+
+        # model test26
+        planner2 = PathPlanning(model_path2, image_path)
+        planner2.compute_path(Init_custom, Target_custom, Step_Num_custom)  # start point , target point,
+        planner2.plot_binary("path_test_002_binary.png", Step_Num_custom)
+        planner2.plot_original("path_test_002_og.png", Step_Num_custom)
+
+        # Cost Calculation
+        ratio = planner.print_distance_ratio()
+        ratio2 = planner2.print_distance_ratio()
+
+        cost = ratio2 - ratio
+
+        print("Performance Improvement: {:.2f}%".format(cost))
+
+
+    # Destroy the node explicitly
+    # (optional - otherwise it will be done automatically
+    # when the garbage collector destroys the node object)
+    minimal_subscriber.destroy_node()
+    rclpy.shutdown()
+
+    waypoint_x = planner.path_x
+    waypoint_y = planner.path_y
+    waypoint_z = planner.path_z
+
+
+if __name__ == '__main__':
+    main()

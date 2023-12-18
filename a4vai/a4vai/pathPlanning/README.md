@@ -20,7 +20,7 @@ Path Planning Algorithms
 *   `test26.onnx`
 *   **pathPlanning_data** 폴더는 NAS 유창경교수님 폴더에 있음.
 
-### 실행 방법
+프로젝트를 실행하는 커맨드는 다음과 같음.
 
 **터미널 - 1: 빌드**
 

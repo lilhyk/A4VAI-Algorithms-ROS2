@@ -28,12 +28,12 @@ Path Planning Algorithms
 
 **터미널 - 2: 이미지 경로 Publish**
 
-`source install/setup.bash` ,
+`source install/setup.bash` ;
 `ros2 run py_pubsub talker`
 
 **터미널 - 3: 이미지 경로 Subscribe & 경로계획 Main문**
 
-`source install/setup.bash`,
+`source install/setup.bash`;
 `ros2 run py_pubsub listener`
 
 3\. 향후 계획

@@ -24,21 +24,17 @@ Path Planning Algorithms
 
 **터미널 - 1: 빌드**
 
-bashCopy code
-
 `colcon build --packages-select py_pubsub`
 
 **터미널 - 2: 이미지 경로 Publish**
 
-bashCopy code
-
-`source install/setup.bash ros2 run py_pubsub talker`
+`source install/setup.bash 
+ros2 run py_pubsub talker`
 
 **터미널 - 3: 이미지 경로 Subscribe & 경로계획 Main문**
 
-bashCopy code
-
-`source install/setup.bash ros2 run py_pubsub listener`
+`source install/setup.bash
+ros2 run py_pubsub listener`
 
 3\. 향후 계획
 ---------

@@ -18,7 +18,7 @@ Path Planning Algorithms
 *   `90_exp_263k.onnx`
 *   `1000-001.png`
 *   `test26.onnx`
-*   위 폴더는 NAS1/무인이동체/유창경교수님 폴더에 있음.
+*   **pathPlanning_data** 폴더는 NAS1/무인이동체/유창경교수님 폴더에 있음.
 
 ### 실행 방법
 

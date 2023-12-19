@@ -15,12 +15,10 @@
 import rclpy
 from rclpy.node import Node
 
-from std_msgs.msg import String
-
-from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
+from custom_msgs.msg import CustomMsg
+from rclpy.qos import QoSProfile
 import cv2
-
+from cv_bridge import CvBridge
 import numpy as np
 import onnx
 import onnxruntime as ort
@@ -310,31 +308,54 @@ class MinimalSubscriber(Node):  # topic 이름과 message 타입은 서로 매�
     def __init__(self):
         super().__init__('minimal_subscriber')
         self.subscription = self.create_subscription(
-            String,
+            CustomMsg,
             'topic',
             self.listener_callback,
-            10)  # subscriber의 custructor와 callback은 어떤 timer 정의도 포함하지 않음
+            QoSProfile(depth=10))  # subscriber의 custructor와 callback은 어떤 timer 정의도 포함하지 않음
         self.subscription  # prevent unused variable warning
+        self.bridge = CvBridge()
+        
+        # 필드 값을 저장할 변수 초기화
+        self.image_path = ""
+        self.Init_custom = [0.0,0.0,0.0]
+        self.Target_custom = [0.0,0.0,0.0]
+        self.mode = 0
+        
         self.bridge = CvBridge()
 
 
+    def listener_callback(self, msg):   # callback 함수는 데이터 받을 때마다 콘솔에 info message를 프린트
+        self.image_path = msg.image_path
+        self.Init_custom = msg.init_custom
+        self.Target_custom = msg.target_custom
+        self.mode = msg.mode
 
-    def listener_callback(self, msg):  # callback 함수는 데이터 받을 때마다 콘솔에 info message를 프린트
-        
-        self.get_logger().info('I heard an image path: "%s"' % msg.data)
-        
-        self.data = msg.data
-
+        # 로깅을 통해 받은 데이터 확인
+        self.get_logger().info(f'I heard: Image Path: {self.image_path}, Init: {self.Init_custom}, Target: {self.Target_custom}, Mode: {self.mode}')
 
 
 def main(args=None):
+
+
     rclpy.init(args=args)
 
     minimal_subscriber = MinimalSubscriber()
 
     rclpy.spin_once(minimal_subscriber)  
 
-    image_path = minimal_subscriber.data  # "1000-003.png"  # Message 통신
+    # 메시지 데이터 사용
+    image_path = minimal_subscriber.image_path
+    Init_custom = minimal_subscriber.Init_custom
+    Target_custom = minimal_subscriber.Target_custom
+    mode = minimal_subscriber.mode
+    
+    # 데이터 출력 (예시)
+    print(f'Image Path: {image_path}')
+    print(f'Init Custom: {Init_custom}')
+    print(f'Target Custom: {Target_custom}')
+    print(f'Mode: {mode}')
+    
+    
     model_path = "90_exp_263k.onnx"
     model_path2 = "test26.onnx"
 
@@ -343,15 +364,14 @@ def main(args=None):
     ## Range [-2500, 2500]으로 바꾸기
     MapSize = 1000  # size 500
     Step_Num_custom = MapSize + 1000
-    Init_custom = np.array([100, 2, 100])  # Message로 바꿀 예정
-    Target_custom = np.array([950, 2, 950])  # Message로 바꿀 예정
 
 
     # Mode: 1 (현재 경로계획만 계산), 2 (현재 + 작년 경로계획과 같이 계산하여 정량평가까지 완료)
     # Node Input: Image 경로 & Mode & 시작점 & 도착점, Output: wp (or Cost도)
-    Mode = 2  # Massage로 바꿀 예정
-    if Mode == 1:
-        
+
+
+    if mode == 1:
+
         # model 90 deg
         planner = PathPlanning(model_path, image_path)
         planner.compute_path(Init_custom, Target_custom,
@@ -361,7 +381,7 @@ def main(args=None):
         planner.print_distance_ratio()
 
 
-    elif Mode == 2:
+    elif mode == 2:
 
         # model 90 deg
         planner = PathPlanning(model_path, image_path)
@@ -380,18 +400,18 @@ def main(args=None):
         # Cost Calculation
         ratio = planner.print_distance_ratio()
         ratio2 = planner2.print_distance_ratio()
-
+        
         cost = ratio2 - ratio
-
+        
         print("Performance Improvement: {:.2f}%".format(cost))
-
-
+        
+        
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically
     # when the garbage collector destroys the node object)
     minimal_subscriber.destroy_node()
     rclpy.shutdown()
-
+    
     waypoint_x = planner.path_x
     waypoint_y = planner.path_y
     waypoint_z = planner.path_z
@@ -399,3 +419,6 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
+
+

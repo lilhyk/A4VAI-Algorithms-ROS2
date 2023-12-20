@@ -34,8 +34,7 @@ Path Planning Algorithms
 
 **터미널 - 1: 빌드**
 
-`cd ~/ros2_ws  
- colcon build`
+`cd ~/ros2_ws  colcon build`
 
 **터미널 - 2: 경로계획 기본 정보 Publish**
 

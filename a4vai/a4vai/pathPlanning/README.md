@@ -34,17 +34,17 @@ Path Planning Algorithms
 
 **터미널 - 1: 빌드**
 
-`cd ~/ros2_ws  
-colcon build`
+`cd ~/ros2_ws`   
+`colcon build`
 
 **터미널 - 2: 경로계획 기본 정보 Publish**
 
-`source install/setup.bash  
- ros2 run py_pubsub talker`
+`source install/setup.bash`  
+`ros2 run py_pubsub talker`
 
 **터미널 - 3: 경로계획 기본 정보 Subscribe & 경로계획 Main문**
 
-`source install/setup.bash  
- ros2 run py_pubsub listener`
+`source install/setup.bash`  
+`ros2 run py_pubsub listener`
 
 

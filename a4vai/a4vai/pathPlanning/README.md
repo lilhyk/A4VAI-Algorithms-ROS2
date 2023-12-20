@@ -5,8 +5,8 @@ Path Planning Algorithms
 -----------
 
 이 프로젝트는 기존의 경로 계획 알고리즘을 통합에 맞도록 업데이트한 버전.  
-`Image2Plan.py` 파일에서 경로계획 기본 정보를 전송하여, `Plan2WP.py`에서 경로 계획을 진행.
-'custom_msgs'를 통해 이미지 경로, 시작점과 도착점, Output Mode를 전송.
+`Image2Plan.py` 파일에서 경로계획 기본 정보를 전송하여, `Plan2WP.py`에서 경로 계획을 진행.  
+'custom_msgs'를 통해 이미지 경로, 시작점과 도착점, Output Mode를 전송.  
 
 
 *   **Image2Plan.py**: 이미지 경로, 시작점과 도착점, Output Mode를 메시지로 전송.

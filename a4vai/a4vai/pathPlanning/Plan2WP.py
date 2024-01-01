@@ -285,7 +285,7 @@ class PathPlanning:
         dy = self.path_y[-1] - self.path_y[0]
         return np.sqrt(dx**2 + dy**2)
 
-    def print_distance_ratio(self):
+    def print_distance_length(self):
         total_wp_distance = self.total_waypoint_distance()
         init_target_distance = self.init_to_target_distance()
 
@@ -299,10 +299,10 @@ class PathPlanning:
         # else:
         #     print(f"절대오차: {absolute_error:.2f}, 상대오차: 계산 불가 (분모가 0)")
 
-        ratio = ( total_wp_distance / init_target_distance )*100
-        print("ONNX : Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
+        length =  (total_wp_distance )
+        print("SAC Path Length: {:.2f}".format(length))
 
-        return ratio
+        return length
 
 
 class RRT:
@@ -475,7 +475,7 @@ class RRT:
 
 
         ## Plot and Save Image
-        imageLine = self.raw_image
+        imageLine2 = self.raw_image
 
 
 
@@ -489,12 +489,12 @@ class RRT:
             Im_jN = MapSize - int(path_y[m + 2])
 
             # 각 웨이포인트에 점 찍기 (thickness 2)
-            cv2.circle(imageLine, (Im_i, Im_j), radius=2, color=(0, 255, 0), thickness=2)
+            cv2.circle(imageLine2, (Im_i, Im_j), radius=2, color=(0, 255, 0), thickness=1)
 
             # 웨이포인트 사이를 선으로 연결 (thickness 1)
-            cv2.line(imageLine, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
+            cv2.line(imageLine2, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
 
-        cv2.imwrite(output_path, imageLine)  ################################
+        cv2.imwrite(output_path, imageLine2)  ################################
 
 
     def plot_RRT_binary(self,output_path):
@@ -521,7 +521,7 @@ class RRT:
 
         # Image_New2 이미지에 그리드 그리기
         for x in range(0, imageLine.shape[1], grid_interval):  # 이미지의 너비에 따라
-            cv2.line(imageLine, (x, 0), (x, imageLine.shape[0]), color=(125, 125, 125), thickness=1)
+            cv2.line(imageLine, (x, 0), (x, imageLine.shape[0]), color=(125, 125, 125), thickness=2)
 
         for y in range(0, imageLine.shape[0], grid_interval):  # 이미지의 높이에 따라
             cv2.line(imageLine, (0, y), (imageLine.shape[1], y), color=(125, 125, 125), thickness=1)
@@ -537,7 +537,7 @@ class RRT:
                 Im_jN = MapSize - int(path_y[m + 2])
 
                 # 각 웨이포인트에 점 찍기 (thickness 2)
-                cv2.circle(imageLine, (Im_i, Im_j), radius=2, color=(0, 255, 0), thickness=2)
+                cv2.circle(imageLine, (Im_i, Im_j), radius=2, color=(0, 255, 0), thickness=1)
 
                 # 웨이포인트 사이를 선으로 연결 (thickness 1)
                 cv2.line(imageLine, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
@@ -582,7 +582,7 @@ class RRT:
         dy = self.path_y[-1] - self.path_y[0]
         return np.sqrt(dx**2 + dy**2)
 
-    def print_distance_ratio(self):
+    def print_distance_length(self):
         total_wp_distance = self.total_waypoint_distance()
         init_target_distance = self.init_to_target_distance()
 
@@ -596,10 +596,10 @@ class RRT:
         # else:
         #     print(f"절대오차: {absolute_error:.2f}, 상대오차: 계산 불가 (분모가 0)")
 
-        ratio = ( total_wp_distance / init_target_distance )*100
-        print("RRT : Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
+        length = total_wp_distance 
+        print("RRT: Path Length: {:.2f}".format(length))
 
-        return ratio
+        return length
 
 
 
@@ -680,9 +680,12 @@ def main(args=None):
         planner = PathPlanning(model_path, image_path)
         planner.compute_path(Init_custom, Target_custom,
                              Step_Num_custom)  # start point , target point,step_num, max lidar, scale factor
-        planner.plot_binary("path_test_001_binary.png", Step_Num_custom)
-        planner.plot_original("path_test_001_og.png", Step_Num_custom)
-        planner.print_distance_ratio()
+        planner.plot_binary("SAC_Result_biary.png", Step_Num_custom)
+        planner.plot_original("SAC_Result_og.png", Step_Num_custom)
+        print("                                           ")
+        print("---------------Results----------------")
+        planner.print_distance_length()
+        print("                                           ")
 
 
     elif mode == 2:
@@ -691,23 +694,25 @@ def main(args=None):
         planner = PathPlanning(model_path, image_path)
         planner.compute_path(Init_custom, Target_custom,
                              Step_Num_custom)  # start point , target point,step_num, max lidar, scale factor
-        planner.plot_binary("path_test_001_binary.png", Step_Num_custom)
-        planner.plot_original("path_test_001_og.png", Step_Num_custom)
+        planner.plot_binary("SAC_Result_biary_01.png", Step_Num_custom)
+        planner.plot_original("SAC_Result_og_01.png", Step_Num_custom)
 
 
         # model test26
         planner2 = PathPlanning(model_path2, image_path)
         planner2.compute_path(Init_custom, Target_custom, Step_Num_custom)  # start point , target point,
-        planner2.plot_binary("path_test_002_binary.png", Step_Num_custom)
-        planner2.plot_original("path_test_002_og.png", Step_Num_custom)
+        planner2.plot_binary("SAC_Result_biary_02.png", Step_Num_custom)
+        planner2.plot_original("SAC_Result_og_02.png", Step_Num_custom)
 
         # Cost Calculation
-        ratio = planner.print_distance_ratio()
-        ratio2 = planner2.print_distance_ratio()
+        ratio = planner.print_distance_length()
+        ratio2 = planner2.print_distance_length()
         
-        cost = ratio2 - ratio
-        
-        print("Performance Improvement: {:.2f}%".format(cost))
+        cost = ((ratio - ratio2)/ratio2) * 100
+        print("                                           ")
+        print("---------------Results----------------")
+        print("Cost: {:.2f}%".format(cost))
+        print("                                           ")
 
 
 
@@ -717,8 +722,8 @@ def main(args=None):
         planner = PathPlanning(model_path, image_path)
         planner.compute_path(Init_custom, Target_custom,
                              Step_Num_custom)  # start point , target point,step_num, max lidar, scale factor
-        planner.plot_binary("ONNX_Result_binary.png", Step_Num_custom)
-        planner.plot_original("ONNX_Result_og.png", Step_Num_custom)
+        planner.plot_binary("SAC_Result_binary.png", Step_Num_custom)
+        planner.plot_original("SAC_Result_og.png", Step_Num_custom)
 
         # RRT
         start_coord = (Init_custom[0],Init_custom[2])  # Replace with your desired start coordinates
@@ -728,7 +733,7 @@ def main(args=None):
         planner3 = RRT(model_path,image_path)
         total_path_ratio = []
         for i in range(N):
-            print(f"Running iteration {i+1}/{N}")
+            print(f"RRT Running iteration {i+1}/{N}")
 
             # Call the RRT path planning method
             planner3.RRT_PathPlanning(start_coord, goal_coord)
@@ -738,21 +743,23 @@ def main(args=None):
             planner3.plot_RRT_binary(f"Results_Images/RRT_Result_Binary_{i+1}.png")
 
             # Calculate and print the distance ratio
-            distance_ratio = planner3.print_distance_ratio()
-            print(f"RRT Distance Ratio for {i + 1}: {distance_ratio:.2f}%")
+            distance_ratio = planner3.print_distance_length()
             total_path_ratio.append(distance_ratio)
 
         # Display the results from all iterations
         min_path_ratio = min(total_path_ratio)
-        print("RRT Min Path Length:", min_path_ratio)
+        print("                                           ")
+        print("---------------Results----------------")
+        print("RRT Min Path Length:: {:.2f}".format(min_path_ratio))
 
         # Cost Calculation
-        ratio = planner.print_distance_ratio()
+        ratio = planner.print_distance_length()
         ratio2 = min_path_ratio
 
-        cost = ratio2 - ratio
+        cost = ((ratio - ratio2)/ratio2) * 100
 
-        print("Performance Improvement: {:.2f}%".format(cost))
+        print("Cost: {:.2f}%".format(cost))
+        print("                                           ")
 
         
     # Destroy the node explicitly

@@ -44,7 +44,7 @@ class MinimalPublisher(Node):  # MinimalPublisher는 Node로부터 상속됨 (No
         msg.image_path = '1000-003.png'  # 1. 이미지 경로 설정
         msg.init_custom = [100.0, 2.0, 100.0]  # 2. 시작점   // float
         msg.target_custom = [950.0, 2.0, 950.0]  # 3. 도착점  // float
-        msg.mode = 2  # 4. Mode 설정
+        msg.mode = 3  # 4. Mode 설정
 
         self.publisher_.publish(msg)
         self.get_logger().info('Publishing: {}'.format(msg))

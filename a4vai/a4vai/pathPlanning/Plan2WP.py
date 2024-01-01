@@ -24,6 +24,8 @@ import onnx
 import onnxruntime as ort
 import time
 import random
+import math
+
 
 class PathPlanning:
     def __init__(self, model_path, image_path, map_size=1000):
@@ -298,9 +300,308 @@ class PathPlanning:
         #     print(f"절대오차: {absolute_error:.2f}, 상대오차: 계산 불가 (분모가 0)")
 
         ratio = ( total_wp_distance / init_target_distance )*100
-        print("Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
+        print("ONNX : Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
 
         return ratio
+
+
+class RRT:
+    def __init__(self, model_path, image_path, map_size=1000):
+        self.model = onnx.load(model_path)
+        self.ort_session = ort.InferenceSession(model_path)
+        self.map_size = map_size
+        self.raw_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        self.raw_image_flipped = cv2.flip(self.raw_image, 0)
+        self.image_new = np.where(self.raw_image_flipped < 150, 0, 1)  # 130
+        # Heightmap 하얀 부분이 더 높은 장애물임
+        # 150m로 이동할 때, 장애물이 150보다 작으면 지나갈 수 있으니 0 150보다 크면 1
+        # 150m 이상 높은 장애물 모두 통과 가능하도록 경로 산출
+
+    # Definition
+    def collision_check(self, Map, from_wp, to_wp):
+        N_grid = len(Map) + 5000
+
+        min_x = math.floor(min(np.round(from_wp[0]), np.round(to_wp[0])))
+        max_x = math.ceil(max(np.round(from_wp[0]), np.round(to_wp[0])))
+        min_y = math.floor(min(np.round(from_wp[1]), np.round(to_wp[1])))
+        max_y = math.ceil(max(np.round(from_wp[1]), np.round(to_wp[1])))
+
+        if max_x > N_grid - 1:
+            max_x = N_grid - 1
+        if max_y > N_grid - 1:
+            max_y = N_grid - 1
+
+        check1 = Map[min_y][min_x]
+        check2 = Map[min_y][max_x]
+        check3 = Map[max_y][min_x]
+        check4 = Map[max_y][max_x]
+
+        flag_collision = max(check1, check2, check3, check4)
+
+        return flag_collision
+
+    def RRT_PathPlanning(self, Start, Goal):
+
+        TimeStart = time.time()
+
+        # Initialization
+        Image =  self.image_new
+
+        #N_grid = len(Image)
+        N_grid = 5000
+
+        # print(Start)
+        Init = np.array([Start[0], 2, Start[1]])
+        Target = np.array([Goal[0], 2, Goal[1]])
+
+        Start = np.array([[Init[0]], [Init[2]]])
+        Goal = np.array([[Target[0]], [Target[2]]])
+
+        Start = Start.astype(float)
+        Goal = Goal.astype(float)
+
+        # User Parameter
+        step_size = np.linalg.norm(Start - Goal, 2) / 500
+        Search_Margin = 0
+
+        ##.. Algorithm Initialize
+        q_start = np.array([Start, 0, 0], dtype=object)  # Coord, Cost, Parent
+        q_goal = np.array([Goal, 0, 0], dtype=object)
+
+        idx_nodes = 1
+
+        nodes = q_start
+        nodes = np.vstack([nodes, q_start])
+        # np.vstack([q_start, q_goal])
+        ##.. Algorithm Start
+
+        flag_end = 0
+        N_Iter = 0
+        while (flag_end == 0):
+            # Set Searghing Area
+            Search_Area_min = Goal - Search_Margin
+            Search_Area_max = Goal + Search_Margin
+            q_rand = Search_Area_min + (Search_Area_max - Search_Area_min) * np.random.uniform(0, 1, [2, 1])
+
+            # Pick the closest node from existing list to branch out from
+            dist_list = []
+            for i in range(0, idx_nodes + 1):
+                dist = np.linalg.norm(nodes[i][0] - q_rand)
+                if (i == 0):
+                    dist_list = [dist]
+                else:
+                    dist_list.append(dist)
+
+            val = min(dist_list)
+            idx = dist_list.index(val)
+
+            q_near = nodes[idx]
+            # q_new = Tree()
+            # q_new = collections.namedtuple('Tree', ['coord', 'cost', 'parent'])
+            new_coord = q_near[0] + (q_rand - q_near[0]) / val * step_size
+
+            # Collision Check
+            flag_collision = self.collision_check(Image, q_near[0], new_coord)
+            # print(q_near[0], new_coord)
+
+            # flag_collision = 0
+
+            # Add to Tree
+            if (flag_collision == 0):
+                Search_Margin = 0
+                new_cost = nodes[idx][1] + np.linalg.norm(new_coord - q_near[0])
+                new_parent = idx
+                q_new = np.array([new_coord, new_cost, new_parent], dtype=object)
+                # print(nodes[0])
+
+                nodes = np.vstack([nodes, q_new])
+                # nodes = list(zip(nodes, q_new))
+                # nodes.append(q_new)
+                # print(nodes[0])
+
+                Goal_Dist = np.linalg.norm(new_coord - q_goal[0])
+
+                idx_nodes = idx_nodes + 1
+
+                if (Goal_Dist < step_size):
+                    flag_end = 1
+                    nodes = np.vstack([nodes, q_goal])
+                    idx_nodes = idx_nodes + 1
+            else:
+                Search_Margin = Search_Margin + N_grid / 100
+
+                if Search_Margin >= N_grid:
+                    Search_Margin = N_grid - 1
+            N_Iter = N_Iter + 1
+            if N_Iter > 100000:
+                break
+
+        flag_merge = 0
+        idx = 0
+        idx_parent = idx_nodes - 1
+        path_x_inv = np.array([])
+        path_y_inv = np.array([])
+        while (flag_merge == 0):
+            path_x_inv = np.append(path_x_inv, nodes[idx_parent][0][0])
+            path_y_inv = np.append(path_y_inv, nodes[idx_parent][0][1])
+
+            idx_parent = nodes[idx_parent][2]
+            idx = idx + 1
+
+            if idx_parent == 0:
+                flag_merge = 1
+
+        path_x = np.array([])
+        path_y = np.array([])
+        for i in range(0, idx - 2):
+            path_x = np.append(path_x, path_x_inv[idx - i - 1])
+            path_y = np.append(path_y, path_y_inv[idx - i - 1])
+
+
+        self.path_x = path_x
+        self.path_y = path_y
+        self.path_z = 150 * np.ones(len(self.path_x))
+
+        TimeEnd = time.time()
+
+
+    def plot_RRT(self,output_path):
+
+        MapSize = self.map_size
+
+        ## Plot and Save Image
+        path_x = self.path_x
+        path_y = self.path_y
+
+
+        ## Plot and Save Image
+        imageLine = self.raw_image
+
+
+
+
+        # 이미지에 맞게 SAC Waypoint 변경 후 그리기
+        for m in range(0, len(path_x) - 2):
+            Im_i = int(path_x[m + 1])
+            Im_j = MapSize - int(path_y[m + 1])
+
+            Im_iN = int(path_x[m + 2])
+            Im_jN = MapSize - int(path_y[m + 2])
+
+            # 각 웨이포인트에 점 찍기 (thickness 2)
+            cv2.circle(imageLine, (Im_i, Im_j), radius=2, color=(0, 255, 0), thickness=2)
+
+            # 웨이포인트 사이를 선으로 연결 (thickness 1)
+            cv2.line(imageLine, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
+
+        cv2.imwrite(output_path, imageLine)  ################################
+
+
+    def plot_RRT_binary(self,output_path):
+        MapSize = self.map_size
+
+
+        ## Plot and Save Image
+        path_x = self.path_x
+        path_y = self.path_y
+
+        Image_New = self.image_new
+        Image_New2 = Image_New * 255
+        Image_New2 = np.uint8(np.uint8((255 - Image_New2)))
+
+        # Image_New2 = cv2.flip(Image_New2, 0)
+        Image_New2 = cv2.flip(Image_New2, 1)
+        Image_New2 = cv2.rotate(Image_New2, cv2.ROTATE_90_CLOCKWISE)
+        Image_New2 = cv2.rotate(Image_New2, cv2.ROTATE_90_CLOCKWISE)
+        # Image_New2 = cv2.rotate(Image_New2, cv2.ROTATE_90_CLOCKWISE)
+        # Image_New2 = cv2.rotate(Image_New2, cv2.ROTATE_90_CLOCKWISE)
+        imageLine = Image_New2.copy()
+        # 이미지 크기에 따른 그리드 간격 설정
+        grid_interval = 20
+
+        # Image_New2 이미지에 그리드 그리기
+        for x in range(0, imageLine.shape[1], grid_interval):  # 이미지의 너비에 따라
+            cv2.line(imageLine, (x, 0), (x, imageLine.shape[0]), color=(125, 125, 125), thickness=1)
+
+        for y in range(0, imageLine.shape[0], grid_interval):  # 이미지의 높이에 따라
+            cv2.line(imageLine, (0, y), (imageLine.shape[1], y), color=(125, 125, 125), thickness=1)
+
+
+        # 이미지에 맞게 SAC Waypoint 변경 후 그리기
+        for i in range(1, len(path_x) - 2):  # Changed to step_num - 1
+            for m in range(0, len(path_x) - 2):
+                Im_i = int(path_x[m + 1])
+                Im_j = MapSize - int(path_y[m + 1])
+
+                Im_iN = int(path_x[m + 2])
+                Im_jN = MapSize - int(path_y[m + 2])
+
+                # 각 웨이포인트에 점 찍기 (thickness 2)
+                cv2.circle(imageLine, (Im_i, Im_j), radius=2, color=(0, 255, 0), thickness=2)
+
+                # 웨이포인트 사이를 선으로 연결 (thickness 1)
+                cv2.line(imageLine, (Im_i, Im_j), (Im_iN, Im_jN), (0, 255, 0), thickness=1, lineType=cv2.LINE_AA)
+
+        cv2.imwrite(output_path, imageLine)  ################################
+
+
+
+    def calculate_and_print_path_info(self):
+        LenRRT = 0
+        for cal in range(len(self.path_x) - 1):
+            First = np.array([self.path_x[cal], self.path_y[cal]])
+            Second = np.array([self.path_x[cal + 1], self.path_y[cal + 1]])
+
+            U = (Second - First) / np.linalg.norm(Second - First)
+
+            State = First
+            for cal_step in range(500):
+                State = State + U
+
+                if np.linalg.norm(Second - State) < 20:
+                    break
+
+                # Add collision check code here if needed
+
+            Len_temp = np.linalg.norm(Second - First)
+            LenRRT += Len_temp
+
+        print("RRT 경로 길이:", LenRRT)
+        return LenRRT
+
+    def total_waypoint_distance(self):
+        total_distance = 0
+        for i in range(1, len(self.path_x)):
+            dx = self.path_x[i] - self.path_x[i - 1]
+            dy = self.path_y[i] - self.path_y[i - 1]
+            total_distance += np.sqrt(dx**2 + dy**2)
+        return total_distance
+
+    def init_to_target_distance(self):
+        dx = self.path_x[-1] - self.path_x[0]
+        dy = self.path_y[-1] - self.path_y[0]
+        return np.sqrt(dx**2 + dy**2)
+
+    def print_distance_ratio(self):
+        total_wp_distance = self.total_waypoint_distance()
+        init_target_distance = self.init_to_target_distance()
+
+        # # 절대오차 계산
+        # absolute_error = abs(total_wp_distance - init_target_distance)
+        #
+        # # 상대오차 계산 (0으로 나누는 경우 예외 처리)
+        # if init_target_distance != 0:
+        #     relative_error = absolute_error / init_target_distance
+        #     print(f"절대오차: {absolute_error:.2f}, 상대오차: {relative_error:.2%}")
+        # else:
+        #     print(f"절대오차: {absolute_error:.2f}, 상대오차: 계산 불가 (분모가 0)")
+
+        ratio = ( total_wp_distance / init_target_distance )*100
+        print("RRT : Total Waypoint Distance / Init to Target Distance: {:.2f}%".format(ratio))
+
+        return ratio
+
+
 
 
 class MinimalSubscriber(Node):  # topic 이름과 message 타입은 서로 매칭되어야 함
@@ -332,6 +633,9 @@ class MinimalSubscriber(Node):  # topic 이름과 message 타입은 서로 매�
 
         # 로깅을 통해 받은 데이터 확인
         self.get_logger().info(f'I heard: Image Path: {self.image_path}, Init: {self.Init_custom}, Target: {self.Target_custom}, Mode: {self.mode}')
+
+
+
 
 
 def main(args=None):
@@ -404,7 +708,52 @@ def main(args=None):
         cost = ratio2 - ratio
         
         print("Performance Improvement: {:.2f}%".format(cost))
-        
+
+
+
+    elif mode == 3:
+
+        # model 90 deg
+        planner = PathPlanning(model_path, image_path)
+        planner.compute_path(Init_custom, Target_custom,
+                             Step_Num_custom)  # start point , target point,step_num, max lidar, scale factor
+        planner.plot_binary("ONNX_Result_binary.png", Step_Num_custom)
+        planner.plot_original("ONNX_Result_og.png", Step_Num_custom)
+
+        # RRT
+        start_coord = (Init_custom[0],Init_custom[2])  # Replace with your desired start coordinates
+        goal_coord = (Target_custom[0],Target_custom[2])
+
+        N = 10
+        planner3 = RRT(model_path,image_path)
+        total_path_ratio = []
+        for i in range(N):
+            print(f"Running iteration {i+1}/{N}")
+
+            # Call the RRT path planning method
+            planner3.RRT_PathPlanning(start_coord, goal_coord)
+
+            # Plot the results
+            planner3.plot_RRT(f"Results_Images/RRT_Result_og_{i+1}.png")
+            planner3.plot_RRT_binary(f"Results_Images/RRT_Result_Binary_{i+1}.png")
+
+            # Calculate and print the distance ratio
+            distance_ratio = planner3.print_distance_ratio()
+            print(f"RRT Distance Ratio for {i + 1}: {distance_ratio:.2f}%")
+            total_path_ratio.append(distance_ratio)
+
+        # Display the results from all iterations
+        min_path_ratio = min(total_path_ratio)
+        print("RRT Min Path Length:", min_path_ratio)
+
+        # Cost Calculation
+        ratio = planner.print_distance_ratio()
+        ratio2 = min_path_ratio
+
+        cost = ratio2 - ratio
+
+        print("Performance Improvement: {:.2f}%".format(cost))
+
         
     # Destroy the node explicitly
     # (optional - otherwise it will be done automatically

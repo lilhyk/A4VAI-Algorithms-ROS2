@@ -11,6 +11,9 @@ Path Planning Algorithms
 
 *   **Image2Plan.py**: 이미지 경로, 시작점과 도착점, Output Mode를 메시지로 전송.
 *   **Plan2WP.py**: 경로 계획 결과를 PNG 그림 파일로 생성, 이전 알고리즘과 비교하여 계산된 Cost를 출력.
+- **Cost**: SAC 학습모델과 RRT 알고리즘 비교 결과는 다음과 같이 계산됨.
+ 
+  ![Cost Formula](https://github.com/lilhyk/A4VAI-Algorithms-ROS2/blob/main/CodeCogsEqn.gif)
 
 2\. 필요 작업
 ---------
@@ -54,3 +57,4 @@ Path Planning Algorithms
 
 
 24.01.01 : RRT 알고리즘과 학습 onnx모델을 비교하는 mode = 3 추가. (기본값으로 설정)
+

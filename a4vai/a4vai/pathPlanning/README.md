@@ -26,7 +26,7 @@ Path Planning Algorithms
 *   `1000-001.png`
 *   `test26.onnx`
 *   **pathPlanning_data** 폴더는 NAS1 '무인이동체_외부공유/유창경교수님/pathPlanning_data'에 있음.
-*   "https://acslc.synology.me/sharing/q6XLjNuyc"
+
 
 
 3\. 실행

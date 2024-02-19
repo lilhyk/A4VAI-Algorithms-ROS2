@@ -28,12 +28,12 @@ import math
 
 
 class PathPlanning:
-    def __init__(self, model_path, image_path, map_size=1000):
+    def __init__(self, model_path, image_path):
         self.model = onnx.load(model_path)
-        self.ort_session = ort.InferenceSession(model_path)
-        self.map_size = map_size
+        self.ort_session = ort.InferenceSession(model_path)       
         self.raw_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
         self.raw_image_flipped = cv2.flip(self.raw_image, 0)
+        self.map_size = max(self.raw_image.shape)
         self.image_new = np.where(self.raw_image_flipped < 150, 0, 1)  # 130
         # Heightmap 하얀 부분이 더 높은 장애물임
         # 150m로 이동할 때, 장애물이 150보다 작으면 지나갈 수 있으니 0 150보다 크면 1
@@ -64,9 +64,11 @@ class PathPlanning:
             Obs3 = np.zeros((1, 12))
 
             ## Make Obs3(Lidar Terms)
-            MaxLidar = 100  # Lidar의 최대 거리 비율 조정 factor
-            scalefactor = 20  # map size 비율 조정 factor
+            #MaxLidar = 100  # Lidar의 최대 거리 비율 조정 factor
+            #scalefactor = 20  # map size 비율 조정 factor
 
+            MaxLidar = self.map_size/10
+            scalefactor = self.map_size/50
 
             for j in range(0, 12):  # 0 - 11
                 LidarState = Pos + ds
@@ -662,13 +664,12 @@ def main(args=None):
     
     model_path = "90_exp_263k.onnx"
     model_path2 = "test26.onnx"
-
+    Initplanner = PathPlanning(model_path, image_path)
 
     # Initialiaztion
     ## Range [-2500, 2500]으로 바꾸기
-    MapSize = 1000  # size 500
+    MapSize = Initplanner.map_size  # size 500
     Step_Num_custom = MapSize + 1000
-
 
     # Mode: 1 (현재 경로계획만 계산), 2 (현재 + 작년 경로계획과 같이 계산하여 정량평가까지 완료)
     # Node Input: Image 경로 & Mode & 시작점 & 도착점, Output: wp (or Cost도)
